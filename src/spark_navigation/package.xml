@@ -22,6 +22,10 @@
   <run_depend>gmapping</run_depend>
   <run_depend>dwa_local_planner</run_depend>
 
+  <run_depend>ar_track_alvar</run_depend>
+  <run_depend>ar_track_alvar_msgs</run_depend>
+
+
   <export>
 
   </export>
