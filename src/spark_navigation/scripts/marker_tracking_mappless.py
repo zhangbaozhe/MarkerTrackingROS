@@ -11,7 +11,7 @@ import actionlib
 from actionlib_msgs.msg import GoalStatus
 from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
 from ar_track_alvar_msgs.msg import AlvarMarkers, AlvarMarker # Marker tag
-from geometry_msgs.msg import PoseStamped, Quaternion
+from geometry_msgs.msg import PoseStamped, Quaternion, Twist
 import tf, tf2_ros, tf2_geometry_msgs
 from tf.transformations import euler_from_quaternion
 from math import pi, acos, sqrt
@@ -27,7 +27,10 @@ ENCODED_DIRS = {0: (0, pi/4), 1: (pi/4, pi/2), 2: (pi/2, 3*pi/4), 3: (3*pi/4, pi
 ## initial id
 INIT_ID = 4
 ## minimum stop distance (m)
-MIN_STOP_DIS = 3
+MIN_STOP_DIS = 2.5
+## target frame id
+# TARGET_FRAME_ID = "map"
+TARGET_FRAME_ID = "odom"
 ##########################################################################################
 
 
@@ -36,16 +39,19 @@ MIN_STOP_DIS = 3
 ##########################################################################################
 # Global variables
 ##########################################################################################
+## should the navigation to be stopped?
 IS_STOP = False
+## is the robot on the way to navigate to the target? If true, we do not accept new target 
+## otherwise, we scan for the new target 
 IS_ON_NAV_ROAD = False
-## This is the global marker pose which lies in odom or (TODO map) 
-## It is the most updated target in each iteration of the navigation process
-POSE_TARGET = AlvarMarker().pose 
+IS_ON_EXPLORE = False
 ## IMPORTANT!!! REMEBER TO UPDATE THE THREE BELOW AT THE SAME TIME
 ## This is the global target sequence containing the PoseStamped (in the odom or map coordinate) with the last of it as the new target
 TARGET_SEQUENCE = []
 ## This is the global target ID sequence
 TARGET_ID_SEQUENCE = []
+
+MOVE_BASE_STATUS = 0
 ##########################################################################################
 
 
@@ -72,7 +78,7 @@ def getTargetMarker(markersInCamera):
     Args:
         markersInCamera (AlvarMarkers): The markers in the virtual_camera_link frame
     """
-    global TARGET_SEQUENCE, TARGET_ID_SEQUENCE, IS_ON_NAV_ROAD
+    global TARGET_SEQUENCE, TARGET_ID_SEQUENCE, IS_ON_NAV_ROAD, IS_ON_EXPLORE
     print("[getTargetMarker] TARGET_ID_SEQUENCE", TARGET_ID_SEQUENCE)
     # init process
     if len(TARGET_ID_SEQUENCE) == 0:
@@ -87,6 +93,8 @@ def getTargetMarker(markersInCamera):
             if isApproachOK(marker.pose.pose.position.x, marker.pose.pose.position.y, marker.pose.pose.position.z):
                 print("[getTargetMarker] IS_ON_NAV_ROAD =", IS_ON_NAV_ROAD)
                 IS_ON_NAV_ROAD = False
+                IS_ON_EXPLORE = True
+                break
         if IS_ON_NAV_ROAD:
             # we have not finish last nav yet
             break
@@ -101,6 +109,7 @@ def getTargetMarker(markersInCamera):
             TARGET_ID_SEQUENCE.append(marker.id)
             TARGET_SEQUENCE.append(poseInOdom)
             IS_ON_NAV_ROAD = True
+            IS_ON_EXPLORE = False
         
         
 def isPoseTarget(candidate):
@@ -148,11 +157,12 @@ def fromCameraToOdom(markerInCamera):
     tf_buffer = tf2_ros.Buffer(rospy.Duration(1200.0))
     tf_listener = tf2_ros.TransformListener(tf_buffer)
     transform = tf_buffer.lookup_transform(
-        "odom", 
+        TARGET_FRAME_ID, 
         markerInCamera.header.frame_id[1:],
         rospy.Time(0), 
         rospy.Duration(1.0))        
     pose_transformed = tf2_geometry_msgs.do_transform_pose(markerInCamera.pose, transform)
+    pose_transformed.header.frame_id = TARGET_FRAME_ID
     quaternionList = [pose_transformed.pose.orientation.x, pose_transformed.pose.orientation.y, pose_transformed.pose.orientation.z, pose_transformed.pose.orientation.w]
     eulerAngle = euler_from_quaternion(quaternionList)
     # debug message
@@ -191,9 +201,59 @@ def sendTheGoal(goal):
 def generateMoveBaseGoal(markerMsg):
     return 
 
+def timerCallBack(event):
+    """This is the timer callback function which handles the navigation process (sending nav goals or
+    cmd_vel commands to the robot, based on the given stack of targets)
+
+    Args:
+        event (_type_): _description_
+    """
+    global MOVE_BASE_STATUS
+    moveBaseActionClient = actionlib.SimpleActionClient('move_base', MoveBaseAction)
+    moveBaseActionClient.wait_for_server()
+    
+    if len(TARGET_SEQUENCE) != 0:
+        poseTarget = TARGET_SEQUENCE[-1]
+    else:
+        poseTarget = PoseStamped()
+    goal = MoveBaseGoal()
+    goal.target_pose.header.frame_id = TARGET_FRAME_ID
+    goal.target_pose.header.stamp = rospy.Time.now()
+    # afraid of the copy ;)
+    goal.target_pose.pose.position.x = poseTarget.pose.position.x
+    goal.target_pose.pose.position.y = poseTarget.pose.position.y
+    goal.target_pose.pose.position.z = poseTarget.pose.position.z
+    goal.target_pose.pose.orientation.x = -poseTarget.pose.orientation.x
+    goal.target_pose.pose.orientation.y = -poseTarget.pose.orientation.y
+    goal.target_pose.pose.orientation.z = -poseTarget.pose.orientation.z
+    goal.target_pose.pose.orientation.w = -poseTarget.pose.orientation.w
+
+    if not IS_ON_NAV_ROAD:
+        moveBaseActionClient.cancel_all_goals()
+        print("[timerCallBack] cancel all goals")
+        twistMsg = Twist()
+        twistMsg.angular.z = 0.2
+        rospy.Publisher("/cmd_vel", Twist, queue_size=10).publish(twistMsg)
+        return
+    if IS_ON_NAV_ROAD and MOVE_BASE_STATUS == 1:
+        # there is a goal currently
+        print("[timerCallBack] not executing")
+        return
+
+    print("[timerCallBack] sending target", poseTarget)    
+    moveBaseActionClient.send_goal(goal)
+    # wait = moveBaseActionClient.wait_for_result()
+    # if not wait:
+        # rospy.logerr("Action server not available")
+        # rospy.signal_shutdown("Action server not available")
+    MOVE_BASE_STATUS = moveBaseActionClient.get_state()
+    print(moveBaseActionClient.get_goal_status_text())
+    
+
 def main():
     rospy.init_node('marker_tracking_mappliess')
     rospy.Subscriber('/ar_pose_marker', AlvarMarkers, getTargetMarker)
+    rospy.Timer(rospy.Duration(0.5), timerCallBack)
     rospy.spin()
     
 if __name__ == "__main__":
