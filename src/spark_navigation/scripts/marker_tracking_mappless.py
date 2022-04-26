@@ -191,15 +191,8 @@ def isApproachOK(x, y, z):
     else:
         return False
 
-def sendTheGoal(goal):
-    '''This function sends the goal to move_base'''
-    return None
 
 
-
-
-def generateMoveBaseGoal(markerMsg):
-    return 
 
 def timerCallBack(event):
     """This is the timer callback function which handles the navigation process (sending nav goals or
