@@ -143,7 +143,7 @@ def getTargetMarker(markersInCamera):
         # this is the target
         if marker.id == TARGET_ID_SEQUENCE[-1]:
             # update
-            # TARGET_SEQUENCE[-1] = fromCameraToOdom(marker)
+            TARGET_SEQUENCE[-1] = fromCameraToOdom(marker)
             delta_x = NEW_ROBOT_POSE.pose.position.x - TARGET_SEQUENCE[-1].pose.position.x
             delta_y = NEW_ROBOT_POSE.pose.position.y - TARGET_SEQUENCE[-1].pose.position.y
             delta_z = NEW_ROBOT_POSE.pose.position.z - TARGET_SEQUENCE[-1].pose.position.z
