@@ -9,6 +9,7 @@ Panels:
         - /TF1
         - /TF1/Frames1
         - /PoseArray1
+        - /Path2
       Splitter Ratio: 0.5
     Tree Height: 443
   - Class: rviz/Selection
@@ -63,6 +64,8 @@ Visualization Manager:
         LED_Link:
           Value: true
         ar_marker_1:
+          Value: true
+        ar_marker_14:
           Value: true
         ar_marker_4:
           Value: true
@@ -125,6 +128,8 @@ Visualization Manager:
                     virtual_camera_link:
                       ar_marker_1:
                         {}
+                      ar_marker_14:
+                        {}
                       ar_marker_4:
                         {}
                   central_controller_Link:
@@ -152,6 +157,7 @@ Visualization Manager:
           Value: true
         Map: true
         Marker: true
+        Path: true
         Pose: true
         PoseArray: true
         TF: true
@@ -274,11 +280,59 @@ Visualization Manager:
       Topic: /particlecloud
       Unreliable: false
       Value: true
+    - Alpha: 1
+      Buffer Length: 1
+      Class: rviz/Path
+      Color: 25; 255; 0
+      Enabled: true
+      Head Diameter: 0.30000001192092896
+      Head Length: 0.20000000298023224
+      Length: 0.30000001192092896
+      Line Style: Lines
+      Line Width: 0.029999999329447746
+      Name: Path
+      Offset:
+        X: 0
+        Y: 0
+        Z: 0
+      Pose Color: 255; 85; 255
+      Pose Style: None
+      Queue Size: 10
+      Radius: 0.029999999329447746
+      Shaft Diameter: 0.10000000149011612
+      Shaft Length: 0.10000000149011612
+      Topic: /move_base/DWAPlannerROS/global_plan
+      Unreliable: false
+      Value: true
+    - Alpha: 1
+      Buffer Length: 1
+      Class: rviz/Path
+      Color: 255; 25; 0
+      Enabled: true
+      Head Diameter: 0.30000001192092896
+      Head Length: 0.20000000298023224
+      Length: 0.30000001192092896
+      Line Style: Lines
+      Line Width: 0.029999999329447746
+      Name: Path
+      Offset:
+        X: 0
+        Y: 0
+        Z: 0
+      Pose Color: 255; 85; 255
+      Pose Style: None
+      Queue Size: 10
+      Radius: 0.029999999329447746
+      Shaft Diameter: 0.10000000149011612
+      Shaft Length: 0.10000000149011612
+      Topic: /move_base/DWAPlannerROS/local_plan
+      Unreliable: false
+      Value: true
   Enabled: true
   Global Options:
     Background Color: 48; 48; 48
     Default Light: true
-    Fixed Frame: map
+    Fixed Frame: odom
     Frame Rate: 30
   Name: root
   Tools:
@@ -302,7 +356,7 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz/Orbit
-      Distance: 10.314376831054688
+      Distance: 5.342008590698242
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.05999999865889549
         Stereo Focal Distance: 1
@@ -310,9 +364,9 @@ Visualization Manager:
         Value: false
       Field of View: 0.7853981852531433
       Focal Point:
-        X: 0.19542424380779266
-        Y: -5.350570201873779
-        Z: 8.165035247802734
+        X: -2.3389854431152344
+        Y: -2.286820650100708
+        Z: 8.37866497039795
       Focal Shape Fixed Size: true
       Focal Shape Size: 0.05000000074505806
       Invert Z Axis: false
