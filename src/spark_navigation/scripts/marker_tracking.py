@@ -14,16 +14,17 @@ from ar_track_alvar_msgs.msg import AlvarMarkers, AlvarMarker # Marker tag
 from geometry_msgs.msg import PoseStamped, Quaternion, Twist
 import tf, tf2_ros, tf2_geometry_msgs
 from tf.transformations import euler_from_quaternion
-from math import pi, acos, sqrt
+from math import pi, acos, sqrt, sin, cos
 from time import sleep
+from random import uniform
 
 
 ##########################################################################################
 # Global constants
 ##########################################################################################
 ## id(int) : (lower bound, upper bound)(tuple)
-ENCODED_DIRS = {0: (0, pi/4), 1: (pi/4, pi/2), 2: (pi/2, 3*pi/4), 3: (3*pi/4, pi), 
-                4: (-pi, -3*pi/4), 5: (-3*pi/4, -pi/2), 6: (-pi/2, -pi/4), 7: (-pi/4, 0), 
+ENCODED_DIRS = {0: (0.0, pi/4), 1: (pi/4, pi/2), 2: (pi/2, 3*pi/4), 3: (3*pi/4, pi), 
+                4: (-pi, -3*pi/4), 5: (-3*pi/4, -pi/2), 6: (-pi/2, -pi/4), 7: (-pi/4, 0.0), 
                 8: None}
 ## initial id
 INIT_ID = 4
@@ -33,6 +34,10 @@ MIN_DELIVER_DIS = 2.6
 ## target frame id
 # TARGET_FRAME_ID = "map"
 TARGET_FRAME_ID = "odom"
+MIN_MAP_X = -9
+MAX_MAP_X = 9
+MIN_MAP_Y = -5
+MAX_MAP_Y = 2.9
 ##########################################################################################
 
 
@@ -75,7 +80,8 @@ def initTarget(marker):
     if marker.id == INIT_ID:
         TARGET_ID_SEQUENCE.append(INIT_ID)
         # TODO: how to use the best transformed pose? average?
-        TARGET_SEQUENCE.append(fromCameraToOdom(marker))
+        TARGET_SEQUENCE.append(
+            checkMarkerPoseBoundAndChange(fromCameraToOdom(marker)))
         IS_ON_NAV_ROAD = True
 
 def getNewRobotPose():
@@ -107,6 +113,17 @@ def getNewRobotPose():
 
     return NEW_ROBOT_POSE
 
+def checkMarkerPoseBoundAndChange(markerPose):
+    if markerPose.pose.position.x < MIN_MAP_X:
+        markerPose.pose.position.x = MIN_MAP_X
+    if markerPose.pose.position.x > MAX_MAP_X:
+        markerPose.pose.position.x = MAX_MAP_X
+    if markerPose.pose.position.y < MIN_MAP_Y:
+        markerPose.pose.position.y = MIN_MAP_Y
+    if markerPose.pose.position.y > MAX_MAP_Y:
+        markerPose.pose.position.y = MAX_MAP_Y
+    return markerPose
+    
 
 
 def getTargetMarker(markersInCamera):
@@ -142,8 +159,11 @@ def getTargetMarker(markersInCamera):
 
         # this is the target
         if marker.id == TARGET_ID_SEQUENCE[-1]:
-            # update
-            TARGET_SEQUENCE[-1] = fromCameraToOdom(marker)
+            # update if the new observed target is still in a good position
+            tempPose = checkMarkerPoseBoundAndChange(fromCameraToOdom(marker))
+            if len(TARGET_ID_SEQUENCE) > 1 and isPoseTarget(tempPose, TARGET_ID_SEQUENCE[-2], TARGET_SEQUENCE[-2]):
+                # TARGET_SEQUENCE[-1] = tempPose
+                pass
             delta_x = NEW_ROBOT_POSE.pose.position.x - TARGET_SEQUENCE[-1].pose.position.x
             delta_y = NEW_ROBOT_POSE.pose.position.y - TARGET_SEQUENCE[-1].pose.position.y
             delta_z = NEW_ROBOT_POSE.pose.position.z - TARGET_SEQUENCE[-1].pose.position.z
@@ -178,11 +198,11 @@ def getTargetMarker(markersInCamera):
             continue
 
         # this pose is ready to be added, a candidate target
-        poseInOdom = fromCameraToOdom(marker)
+        poseInOdom = checkMarkerPoseBoundAndChange(fromCameraToOdom(marker))
         # if the checking process of the candidate pose is OK 
         # then we put the PoseStamped in the SEQUENCE
         # EXPLORE -> NAV_ROAD
-        if IS_ON_EXPLORE and isPoseTarget(poseInOdom):
+        if IS_ON_EXPLORE and isPoseTarget(poseInOdom, TARGET_ID_SEQUENCE[-1], TARGET_SEQUENCE[-1]):
             TARGET_ID_SEQUENCE.append(marker.id)
             TARGET_SEQUENCE.append(poseInOdom)
             IS_ON_NAV_ROAD = True
@@ -191,7 +211,7 @@ def getTargetMarker(markersInCamera):
             IS_ON_DELIVER = False
         
         
-def isPoseTarget(candidate):
+def isPoseTarget(candidate, oldTargetID, oldTargetPose):
     """Helper function to check if the given pose is in the right direction w.r.t. the current 
     position of the robot (or the approached old target). If the given pose is the next target 
     we want to find, then return true
@@ -202,14 +222,14 @@ def isPoseTarget(candidate):
     Returns:
         bool:
     """
-    oldTargetPose = TARGET_SEQUENCE[-1]
-    oldTargetID = TARGET_ID_SEQUENCE[-1]
     old_x = oldTargetPose.pose.position.x
     old_y = oldTargetPose.pose.position.y
     new_x = candidate.pose.position.x
     new_y = candidate.pose.position.y
     vector_x = new_x - old_x
     vector_y = new_y - old_y
+    print("[isPoseTarget] oldTargetID =", oldTargetID)
+    print("[isPoseTarget]", "vector_x =", vector_x, "vector_y =", vector_y)
 
     if vector_y <= 0:
         vector_angle = -acos(vector_x / sqrt(vector_x**2 + vector_y**2))
@@ -302,6 +322,7 @@ def timerCallBack(event):
         poseTarget = PoseStamped()
     goal = generateMoveBaseGoal(poseTarget)
     # print("[timerCallBack] state =", moveBaseActionClient.get_state())
+    print("[timerCallBack] goal =", goal)
     if IS_ON_DELIVER:
         print("++++++++++++++++++ DELIVER")
         # store the last pose
@@ -342,12 +363,33 @@ def timerCallBack(event):
     
     if IS_ON_EXPLORE:
         print("++++++++++++++++++ EXPLORE")
-        moveBaseActionClient.stop()
-        msg = Twist()
-        msg.angular.z = 1
-        rospy.Publisher("/cmd_vel", Twist, queue_size=1).publish(msg)
-        sleep(1)
-        rospy.Publisher("/cmd_vel", Twist, queue_size=1).publish(Twist())
+        # moveBaseActionClient.stop()
+        # msg = Twist()
+        # rotate to the next target direction
+        # msg.angular.z = (ENCODED_DIRS[TARGET_ID_SEQUENCE[-1]][0] + ENCODED_DIRS[TARGET_ID_SEQUENCE[-1]][1]) / 2 
+        # rospy.Publisher("/cmd_vel", Twist, queue_size=1).publish(msg)
+        # sleep(1)
+        # rospy.Publisher("/cmd_vel", Twist, queue_size=1).publish(Twist())
+        norm = 5
+        rand_angle = uniform(ENCODED_DIRS[TARGET_ID_SEQUENCE[-1]][0], ENCODED_DIRS[TARGET_ID_SEQUENCE[-1]][1])
+        exploreGoal = MoveBaseGoal()
+        exploreGoal.target_pose.header.frame_id = TARGET_FRAME_ID
+        exploreGoal.target_pose.header.stamp = rospy.Time.now()
+        exploreGoal.target_pose.pose.position.x = norm * cos(rand_angle) + NEW_ROBOT_POSE.pose.position.x
+        exploreGoal.target_pose.pose.position.y = norm * sin(rand_angle) + NEW_ROBOT_POSE.pose.position.y
+        exploreGoal.target_pose.pose.position.z = 0.15
+        q = tf.transformations.quaternion_from_euler(0, 0, rand_angle)
+        exploreGoal.target_pose.pose.orientation.x = q[0]
+        exploreGoal.target_pose.pose.orientation.y = q[1]
+        exploreGoal.target_pose.pose.orientation.z = q[2]
+        exploreGoal.target_pose.pose.orientation.w = q[3]
+        try:
+            moveBaseActionClient.send_goal(exploreGoal)
+            sleep(10)
+            moveBaseActionClient.stop()
+        except Exception as e:
+            print(e)
+            print("[timerCallBack] exploreGoal =", exploreGoal)
         return
     
     if IS_ON_NAV_ROAD:
