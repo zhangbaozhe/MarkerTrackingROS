@@ -29,8 +29,9 @@ ENCODED_DIRS = {0: (0.0, pi/4), 1: (pi/4, pi/2), 2: (pi/2, 3*pi/4), 3: (3*pi/4, 
 ## initial id
 INIT_ID = 4
 ## minimum stop distance (m)
-MIN_STOP_DIS = 2.5
-MIN_DELIVER_DIS = 2.6
+INFLATION_DIS = 0.1
+MIN_STOP_DIS = 2.5 - INFLATION_DIS
+MIN_DELIVER_DIS = 2.6 - INFLATION_DIS
 ## target frame id
 # TARGET_FRAME_ID = "map"
 TARGET_FRAME_ID = "odom"
@@ -81,7 +82,10 @@ def initTarget(marker):
         TARGET_ID_SEQUENCE.append(INIT_ID)
         # TODO: how to use the best transformed pose? average?
         TARGET_SEQUENCE.append(
-            checkMarkerPoseBoundAndChange(fromCameraToOdom(marker)))
+            getTargetOutInflation(
+                checkMarkerPoseBoundAndChange(fromCameraToOdom(marker))
+            )
+        )
         IS_ON_NAV_ROAD = True
 
 def getNewRobotPose():
@@ -112,6 +116,24 @@ def getNewRobotPose():
     # print("[getNewRobotPose] ", NEW_ROBOT_POSE)
 
     return NEW_ROBOT_POSE
+
+def getTargetOutInflation(poseTarget):
+    my_x = NEW_ROBOT_POSE.pose.position.x
+    my_y = NEW_ROBOT_POSE.pose.position.y
+    goal_x = poseTarget.pose.position.x
+    goal_y = poseTarget.pose.position.y
+    dis = sqrt((goal_y - my_y)**2 + (goal_x - my_x)**2)
+    if dis < INFLATION_DIS:
+        return poseTarget
+    else:
+        cos_ = (goal_x - my_x) / dis
+        sin_ = (goal_y - my_y) / dis
+        new_x = (dis - INFLATION_DIS) * cos_
+        new_y = (dis - INFLATION_DIS) * sin_
+        poseTarget.pose.position.x = my_x + new_x
+        poseTarget.pose.position.y = my_y + new_y
+        return poseTarget
+
 
 def checkMarkerPoseBoundAndChange(markerPose):
     if markerPose.pose.position.x < MIN_MAP_X:
@@ -160,9 +182,9 @@ def getTargetMarker(markersInCamera):
         # this is the target
         if marker.id == TARGET_ID_SEQUENCE[-1]:
             # update if the new observed target is still in a good position
-            tempPose = checkMarkerPoseBoundAndChange(fromCameraToOdom(marker))
+            tempPose = getTargetOutInflation(checkMarkerPoseBoundAndChange(fromCameraToOdom(marker)))
             if len(TARGET_ID_SEQUENCE) > 1 and isPoseTarget(tempPose, TARGET_ID_SEQUENCE[-2], TARGET_SEQUENCE[-2]):
-                # TARGET_SEQUENCE[-1] = tempPose
+                TARGET_SEQUENCE[-1] = tempPose
                 pass
             delta_x = NEW_ROBOT_POSE.pose.position.x - TARGET_SEQUENCE[-1].pose.position.x
             delta_y = NEW_ROBOT_POSE.pose.position.y - TARGET_SEQUENCE[-1].pose.position.y
@@ -198,7 +220,7 @@ def getTargetMarker(markersInCamera):
             continue
 
         # this pose is ready to be added, a candidate target
-        poseInOdom = checkMarkerPoseBoundAndChange(fromCameraToOdom(marker))
+        poseInOdom = getTargetOutInflation(checkMarkerPoseBoundAndChange(fromCameraToOdom(marker)))
         # if the checking process of the candidate pose is OK 
         # then we put the PoseStamped in the SEQUENCE
         # EXPLORE -> NAV_ROAD
@@ -370,8 +392,9 @@ def timerCallBack(event):
         # rospy.Publisher("/cmd_vel", Twist, queue_size=1).publish(msg)
         # sleep(1)
         # rospy.Publisher("/cmd_vel", Twist, queue_size=1).publish(Twist())
-        norm = 5
-        rand_angle = uniform(ENCODED_DIRS[TARGET_ID_SEQUENCE[-1]][0], ENCODED_DIRS[TARGET_ID_SEQUENCE[-1]][1])
+        norm = 8
+        # rand_angle = uniform(ENCODED_DIRS[TARGET_ID_SEQUENCE[-1]][0], ENCODED_DIRS[TARGET_ID_SEQUENCE[-1]][1])
+        rand_angle = ENCODED_DIRS[TARGET_ID_SEQUENCE[-1]][1]
         exploreGoal = MoveBaseGoal()
         exploreGoal.target_pose.header.frame_id = TARGET_FRAME_ID
         exploreGoal.target_pose.header.stamp = rospy.Time.now()
@@ -384,8 +407,9 @@ def timerCallBack(event):
         exploreGoal.target_pose.pose.orientation.z = q[2]
         exploreGoal.target_pose.pose.orientation.w = q[3]
         try:
+            print("[timerCallBack] exploreGoal =", exploreGoal)
             moveBaseActionClient.send_goal(exploreGoal)
-            sleep(10)
+            sleep(1)
             moveBaseActionClient.stop()
         except Exception as e:
             print(e)
@@ -403,7 +427,7 @@ def timerCallBack(event):
 def main():
     rospy.init_node('marker_tracking_mappliess')
     rospy.Subscriber('/ar_pose_marker', AlvarMarkers, getTargetMarker)
-    rospy.Timer(rospy.Duration(5), timerCallBack)
+    rospy.Timer(rospy.Duration(2), timerCallBack)
     rospy.spin()
     
 if __name__ == "__main__":

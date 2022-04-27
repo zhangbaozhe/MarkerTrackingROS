@@ -1,0 +1,15 @@
+<!-- Created by Baozhe Zhang for project 1 -->
+<launch>
+    <arg name="map_dir" default="$(find spark_navigation)/maps/project1.yaml" />
+    <!-- Map server -->
+    <node pkg="map_server" type="map_server" name="map_server" args="$(arg map_dir)" output="screen" />
+
+    <!-- amcl -->
+    <include file="$(find spark_navigation)/launch/includes/amcl.launch" />
+
+    <!-- Move base -->
+    <include file="$(find spark_navigation)/launch/move_base.launch" />
+
+
+
+</launch>
