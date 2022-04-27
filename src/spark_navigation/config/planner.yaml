@@ -11,7 +11,7 @@ TrajectoryPlannerROS:
   acc_lim_theta:  3.2
 
   max_vel_x: 1.0
-  min_vel_x: 0.0
+  min_vel_x: -1.0 # make it to negative so that the robot can go backwards
 
   max_vel_theta: 1.0
   min_vel_theta: -1.0
@@ -21,8 +21,8 @@ TrajectoryPlannerROS:
   escape_vel: -0.1
 
   # Goal Tolerance Parameters
-  yaw_goal_tolerance: 0.1
-  xy_goal_tolerance: 0.2
+  yaw_goal_tolerance: 0.1 
+  xy_goal_tolerance: 0.2 
   latch_xy_goal_tolerance: false
 
   # Forward Simulation Parameters
@@ -58,7 +58,7 @@ DWAPlannerROS:
   acc_lim_th: 3.2
 
   max_vel_x: 0.5
-  min_vel_x: 0.0
+  min_vel_x: -0.5 # make it to negative
   max_vel_y: 0
   min_vel_y: 0
 

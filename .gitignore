@@ -2,3 +2,6 @@ devel/
 build/
 .catkin_workspace
 .vscode/
+spark1_description_backup/
+*.zip
+password.txt
