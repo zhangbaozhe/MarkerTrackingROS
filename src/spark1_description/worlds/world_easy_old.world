@@ -94,7 +94,7 @@
       <static>1</static>
     </include>
 
-    <!-- <include>
+    <include>
       <name>table1</name>
       <uri>model://desk_drawer</uri>
       <pose>-8.25 1.6 0 0 0 1.571</pose>
@@ -197,9 +197,9 @@
       <uri>model://desk_drawer</uri>
       <pose>8 -2.0 0 0 0 1.571</pose>
       <static>1</static>
-    </include> -->
+    </include>
 
-    <!-- <include>
+    <include>
       <name>chair1</name>
       <uri>model://chair_1</uri>
       <pose>-8.75 -3.4 0 0 0 -1.571</pose>
@@ -269,14 +269,14 @@
       <static>1</static>
     </include>
 
-    <!-- turtlebots -->
+  <!-- turtlebots -->
 
-    <!-- <include>
+    <include>
       <name>turtlebot1</name>
       <uri>model://turtlebot</uri>
       <pose>8.5 -3.8 -0.075 0 0 0</pose>
       <static>1</static>
-    </include> -->
+    </include>
 
     <include>
       <name>turtlebot2</name>

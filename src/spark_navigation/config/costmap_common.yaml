@@ -22,4 +22,4 @@ obstacles_laser:
 
 inflation:
     # inflation_radius: 1.0
-    inflation_radius: 0.5 # Baozhe added to reduce the inflation effect
+    inflation_radius: 1.0 # Baozhe added to reduce the inflation effect
